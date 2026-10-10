@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Othman AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Tajawal',sans-serif}
+body{background:#0a0a14;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+.header{background:linear-gradient(90deg,#7c3aed,#f97316);padding:14px;text-align:center;font-weight:800;font-size:17px;position:sticky;top:0}
+.chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;padding-bottom:115px}
+.msg{max-width:90%;padding:13px 16px;border-radius:22px;line-height:1.8;font-size:15px;animation:pop .22s}
+@keyframes pop{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.bot{background:#1d1d33;align-self:flex-start;border-bottom-right-radius:6px;border:1px solid #2a2a4a}
+.user{background:linear-gradient(135deg,#7c3aed,#a78bfa);align-self:flex-end;border-bottom-left-radius:6px;font-weight:700}
+.inputBar{position:fixed;bottom:0;left:0;right:0;background:#14142a;padding:12px;display:flex;gap:10px;align-items:center;border-top:1px solid #2a2a50}
+.inputBar input{flex:1;background:#0a0a14;border:1px solid #3a3a6a;border-radius:26px;padding:13px 18px;color:#fff;outline:none;font-size:15px}
+.btn{width:50px;height:50px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.send{background:linear-gradient(135deg,#7c3aed,#f97316);color:#fff}
+.mic{background:#252545;color:#fff}
+.mic.recording{background:#ef4444;animation:pulse 1s infinite}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.speaker{cursor:pointer;margin-right:8px;opacity:.7}
+.quick{display:flex;gap:8px;overflow-x:auto;padding:6px 0}
+.quick button{background:#252545;border:1px solid #3a3a6a;color:#fff;padding:7px 13px;border-radius:20px;white-space:nowrap;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<div class="header">Othman AI</div>
+<div class="chat" id="chat">
+<div class="msg bot">هلا والله! 🙏<br><br>احجيلي بأي لهجة، أي كلمة، حتى لو كتابتك بيها أخطاء أفهمك!<br><br>• مرحبا، شلونك، شكو ماكو<br>• احجيلي نكته، سالفة، حكمة<br>• احبك، مشتاقلك، ضايج، تعبان<br>• أي شي ببالك<br><br>أجاوبك كتابة وصوت 🔊</div>
+<div class="quick" id="quick">
+<button onclick="sendQuick('مرحبا كيفك شكو ماكو')">مرحبا</button>
+<button onclick="sendQuick('احجيلي نكته')">نكته</button>
+<button onclick="sendQuick('شلونك')">شلونك</button>
+<button onclick="sendQuick('احبك')">احبك</button>
+<button onclick="sendQuick('احجيلي حكمة')">حكمة</button>
+<button onclick="sendQuick('ضايج')">ضايج</button>
+</div>
+</div>
+<div class="inputBar">
+<button class="btn mic" id="micBtn">🎤</button>
+<input type="text" id="input" placeholder="اكتب أي شي...">
+<button class="btn send" id="sendBtn">➤</button>
+</div>
+<script>
+const chat=document.getElementById('chat');
+const input=document.getElementById('input');
+let history=[];
+let voices=[]; const loadVoices=()=>voices=speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged=loadVoices; loadVoices();
+function speak(t){ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); const ar=voices.find(v=>v.lang.includes('ar')); if(ar) u.voice=ar; u.lang='ar-SA'; u.rate=0.95; u.pitch=1.02; speechSynthesis.speak(u); }
+function addMsg(text,who){
+  const div=document.createElement('div'); div.className='msg '+who; div.textContent=text;
+  if(who==='bot'){ const sp=document.createElement('span'); sp.textContent=' 🔊'; sp.className='speaker'; sp.onclick=()=>speak(text); div.appendChild(sp); }
+  const quick=document.getElementById('quick');
+  if(quick && who==='bot' && chat.contains(quick)) chat.insertBefore(div, quick);
+  else chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+  if(who==='bot') speak(text);
+}
+function sendQuick(t){ input.value=t; handleSend(); }
+
+// تصحيح الأخطاء الإملائية الشائعة + لهجات
+function normalize(s){
+  return s.toLowerCase()
+  .replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي')
+  .replace(/[^ء-يa-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+}
+
+const INTENTS=[
+  {k:['مرحبا','هلا','سلام','اهلا','هلاو','هلو','السلام','سلامات','هلا والله'], r:['هلا والله هلا! نورت حبيبي، شلونك؟','أهلين أهلين! شخبارك؟','مرحبتين! هلا بالغالي، شلونك اليوم؟','هلا والله! مشتاقين، شكو ماكو؟']},
+  {k:['كيفك','شلونك','شلونج','شلونكم','شخبارك','شخبارج','اخبارك','شلونه','شلون','كيف حالك','شلون احوالك','شلونك انت'], r:['والله بخير دامك بخير، انت شلونك؟','الحمدلله زين، انت شلونك؟ شكو ماكو؟','تمام الحمدلله، انت شلونك؟','بخير والله، انت شخبارك؟']},
+  {k:['شو الاخبار','شنو الاخبار','ايش الاخبار','شكو ماكو','شكو','ماكو','وش الاخبار','اخبار','شكو ماكو اليوم'], r:['الأخبار زينة الحمدلله، كلشي تمام، انت شكو عندك جديد؟','والله ماشي الحال، نفس الروتين، بس وياك صار أحلى 😊','ماكو شي جديد، انت شكو ماكو؟ احجيلي']},
+  {k:['في ما في','مافي','ماكو شي','ما في شي','ما في'], r:['إي فهمت "ماكو شي" 😊 الحمدلله أهم شي ماكو شي يضوجك!','الحمدلله إذا ماكو شي، راحة بال 😊']},
+  {k:['شنو تسوي','ماذا تفعل','شو بتعمل','شو بتسوي','وش تسوي','شنو تعمل','شنو شغلك','شغلك','شو شغلك'], r:['قاعد أسمعك وأحجي وياك! أنا هنا أسولف وياك بأي لهجة','اسمعك حبيبي، احجيلي أي شي ببالك، أنا حاضر','أنا Othman AI، مهمتي أفهمك وأجاوبك بصوت، شنو تحب نحجي؟']},
+  {k:['نكته','نكتة','طرفه','نكت','اضحك','نكتة عراقية','نكتة مصرية','محشش'], r:['واحد عراقي راح للدكتور كله دكتور أنسى بسرعة، كله من إيمتى؟ كله من إيمتى شنو؟ 😂','محشش سألوه شنو أكثر شي يخوفك؟ قال: إذا كتبت ههههه وردت عليّ بـ ههه بس! 😆','واحد مصري بيقول لصاحبه أنا كل ما أشرب قهوة ما أنامش، قاله وأنا العكس، قاله إزاي؟ قاله أنا كل ما أنام ما أشربش قهوة! 😂','عراقي كال لصاحبه ضايج، كاله ليش؟ كاله حلمت اتزوجت، كاله وش بيها؟ كاله كعدت من الحلم لكيتي جنبي! 😂','سوري راح يشتري بدلة قاله البياع تلبس 44؟ قاله لا 44 بلبسها بالبيت، برا بلبس 46 حتى أبين مهم! 😂','واحد خليجي قال لخويه علمني الإنجليزي، قاله وش تبي تعرف؟ قاله وش معنى come here؟ قاله تعال هنا، قاله طيب روح هناك؟ قاله go there، قاله أجل بنروح ونجي! 😂']},
+  {k:['حكمه','حكمة','مثل','امثال','نصيحه','نصيحة'], r:['الحكمة تكول: لا تحجي وانت معصب، ولا توعد وانت فرحان 👌','الدنيا مثل المراية، إذا ضحكتلها تضحكلك','الصبر مفتاح الفرج، وكل ضيق وراه فرج','لا تفكر هواي بالماضي، فكر شلون تخلي باجر أحلى']},
+  {k:['احبك','اعشقك','حبك','اموت عليك','مشتاقلك','مشتاق'], r:['وأنا أكثر والله! فدوة لقلبك ❤️','حبيبي انت! الله يسعدك 😊','فدوة أروحلك، مشتاقلك أكثر!','يا بعد قلبي انت! ❤️']},
+  {k:['من انت','انت منو','شنو انت','تعريف','منو انت'], r:['أنا Othman AI، ذكاء يفهم كل اللهجات العراقية والمصرية والسورية والخليجية، أحجي وياك كتابة وصوت']},
+  {k:['عراقي','عراق','شكو ماكو','شلونج','شلونچ'], r:['إي تاج راسي أهل العراق! أحجي عراقي ثكيل، شتريد؟','على راسي أهل العراق، احجيلي عراقي! شكو ماكو؟']},
+  {k:['مصري','مصر','ازيك','عامل ايه','ايه الاخبار'], r:['أيوه يا باشا! بتكلم مصري زي الفل، عايز إيه؟','مصري يا معلم؟ عيوني، قولّي!']},
+  {k:['سوري','سوريا','شامي','شلونك','كيفك'], r:['تكرم عينك! بحكي سوري كمان، شو بدك؟','أهلين بأهل الشام، احكيلي!']},
+  {k:['خليجي','سعودي','كويتي','شلونك','وش اخبارك'], r:['يا هلا والله! أبشر، احجي خليجي، وش تبي؟','هلا بالغالي، وش علومك؟']},
+  {k:['شكرا','thanks','thank'], r:['العفو حبيبي! حاضرين ❤️','تدلل، بأي وقت']},
+  {k:['تعبان','ضايج','زعلان','حزين','متضايق','مخنوق','قافل'], r:['سلامتك حبيبي، ليش ضايج؟ احجيلي، فضفضلي، أنا أسمعك','أعرف هالشعور، بس كل ضيقة وراها فرج، احجيلي شنو مضايقك؟','لا تضوج، الدنيا هيج يوم حلو ويوم مو حلو، باجر أحلى']},
+  {k:['جميل','حلو','روعة','عاشت ايدك','مبدع','رهيب'], r:['فدوة لقلبك! كلامك هو الحلو 😊','انت الأحلى والله!']},
+  {k:['اسمك','شنو اسمك','ما اسمك'], r:['اسمي Othman AI']},
+  {k:['صباح الخير','مساء الخير','صباح','مساء'], r:['صباح النور والسرور! شلونك؟','مساء العسل حبيبي! هلا والله','صباح الورد!','مساء الخير، نورت']},
+  {k:['باي','مع السلامه','اشوفك','تصبح على خير'], r:['باي حبيبي! أشوفك على خير، لا تنسى ترجع تسولف وياي ❤️','مع السلامة، انتبه لنفسك!']},
+  {k:['وينك','وين','مكانك'], r:['أنا هنا يمك! بالجوال، أسمعك 24 ساعة 😊','موجود حبيبي، احجيلي']},
+  {k:['ساعه','وقت','تاريخ','اليوم'], r:['الساعة هسه '+new Date().toLocaleTimeString('ar-IQ')+'، الوقت وياك يمر بسرعة 😊','اليوم '+(new Date().toLocaleDateString('ar-IQ'))]},
+  {k:['ساعدني','مساعده','محتاج'], r:['أكيد أساعدك، احجيلي شنو محتاج؟','تدلل، أنا حاضر، شنو تريد؟']},
+];
+
+function smartReply(raw){
+  const q=normalize(raw);
+  history.push(raw); if(history.length>10) history.shift();
+
+  for(let intent of INTENTS){
+    for(let key of intent.k){
+      const nk=normalize(key);
+      if(q.includes(nk) || nk.includes(q) || q.split(' ').some(w=>nk.includes(w)&&w.length>2)){
+        const ans=intent.r[Math.floor(Math.random()*intent.r.length)];
+        // تنويع إذا نفس السؤال تكرر
+        return ans;
+      }
+    }
+  }
+
+  // فهم سياقي لأي جملة
+  if(q.length>=3){
+    if(q.includes('مرحبا')||q.includes('كيفك')||q.includes('الاخبار')||q.includes('هلا')){
+      return 'هلا والله! مرحبا كيفك انت؟ الأخبار كلها تمام الحمدلله، ماكو شي، انت شلونك؟ شكو ماكو؟ احجيلي شكو عندك اليوم؟ 😊';
+    }
+    // رد ذكي عام يذكر كلام المستخدم
+    const templates=[
+      `حلو! فهمت عليك لما كلت "${raw}" 😊 كمل احجيلي أكثر`,
+      `إي إي بخصوص "${raw}".. موضوع حلو! شنو رأيك انت بيه؟`,
+      `هاا "${raw}"! احجيلي أكثر عنه، أنا أسمعك`,
+      `تمام، فهمت "${raw}".. أنا وياك، شنو تحب تعرف؟`,
+      `فهمت قصدك من "${raw}"، كمل سالفتك حبيبي`,
+      `"${raw}" - نقطة مهمة! شنو تريد نسوي بيها؟`
+    ];
+    return templates[Math.floor(Math.random()*templates.length)];
+  }
+  return 'هلا حبيبي! كمل احجيلي، أنا أسمعك وأفهمك 😊';
+}
+
+function handleSend(){
+  const text=input.value.trim(); if(!text) return;
+  addMsg(text,'user'); input.value='';
+  const typing=document.createElement('div'); typing.className='msg bot'; typing.textContent='يكتب...'; chat.appendChild(typing); chat.scrollTop=chat.scrollHeight;
+  setTimeout(()=>{ typing.remove(); addMsg(smartReply(text),'bot'); }, 400+Math.random()*400);
+}
+document.getElementById('sendBtn').onclick=handleSend;
+input.onkeypress=e=>{if(e.key==='Enter') handleSend();};
+let rec; if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; rec=new SR(); rec.lang='ar-IQ'; rec.continuous=false;
+  rec.onstart=()=>document.getElementById('micBtn').classList.add('recording');
+  rec.onend=()=>document.getElementById('micBtn').classList.remove('recording');
+  rec.onresult=e=>{ input.value=e.results[0][0].transcript; handleSend(); };
+}
+document.getElementById('micBtn').onclick=()=>{ if(!rec){alert('المايك يشتغل بكروم');return;} try{rec.start();}catch{rec.stop();} };
+</script>
+</body>
+</html>
